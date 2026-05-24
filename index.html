@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polarisation einer Transversalwelle</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: rgba(18, 24, 40, 0.85);
+    --border: rgba(120, 180, 255, 0.2);
+    --accent: #4dd0ff;
+    --accent-warm: #ffb347;
+    --text: #e8eef8;
+    --text-dim: #8a9bb5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: radial-gradient(ellipse at top, #1a2138 0%, var(--bg) 70%);
+    color: var(--text);
+  }
+  #canvas-container {
+    position: fixed; inset: 0;
+  }
+  canvas { display: block; }
+  
+  header {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 20px 30px;
+    z-index: 10;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(10,14,26,0.9), transparent);
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
+  h1 em {
+    color: var(--accent);
+    font-style: italic;
+    font-weight: 400;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.03em;
+  }
+
+  .panel {
+    position: fixed;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  #controls {
+    bottom: 24px;
+    left: 24px;
+    right: 24px;
+    display: flex;
+    gap: 24px;
+    align-items: stretch;
+  }
+  .control-group {
+    flex: 1;
+    min-width: 0;
+  }
+  .control-group h3 {
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: linear-gradient(to right, rgba(77,208,255,0.15), rgba(77,208,255,0.4));
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(77,208,255,0.6);
+    transition: transform 0.15s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 12px rgba(77,208,255,0.6);
+  }
+  .filter-slider input[type="range"]::-webkit-slider-thumb {
+    background: var(--accent-warm);
+    box-shadow: 0 0 12px rgba(255,179,71,0.6);
+  }
+  .filter-slider input[type="range"]::-moz-range-thumb {
+    background: var(--accent-warm);
+    box-shadow: 0 0 12px rgba(255,179,71,0.6);
+  }
+  .value {
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    color: var(--text);
+    min-width: 56px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .value.warm { color: var(--accent-warm); }
+  .value.mono { min-width: 70px; }
+
+  /* Wave color dots for slider rows */
+  .wave-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .wave-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0;
+  }
+  .wave-row.disabled { opacity: 0.4; }
+  .wave-row.disabled input[type="range"] {
+    pointer-events: none;
+  }
+
+  /* Toggle switch */
+  .toggle {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  .toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: rgba(120, 140, 170, 0.25);
+    border: 1px solid rgba(120, 180, 255, 0.2);
+    transition: 0.2s;
+    border-radius: 18px;
+  }
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 12px;
+    width: 12px;
+    left: 2px;
+    bottom: 2px;
+    background: #8a9bb5;
+    transition: 0.2s;
+    border-radius: 50%;
+  }
+  .toggle input:checked + .toggle-slider {
+    background: rgba(77, 208, 255, 0.25);
+    border-color: rgba(77, 208, 255, 0.6);
+  }
+  .toggle input:checked + .toggle-slider:before {
+    transform: translateX(16px);
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  /* Kompaktere Slider in der Wellengruppe */
+  .wave-row input[type="range"] {
+    height: 3px;
+  }
+  .wave-row .value { font-size: 13px; min-width: 42px; }
+  .wave-row.hidden { display: none; }
+
+  /* Mode tabs */
+  .mode-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 10px;
+    background: rgba(120, 140, 170, 0.1);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .mode-tab {
+    flex: 1;
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    padding: 6px 10px;
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .mode-tab:hover { color: var(--text); }
+  .mode-tab.active {
+    background: rgba(77, 208, 255, 0.18);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(77, 208, 255, 0.15);
+  }
+  .unpolarized-hint {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  /* Filter rows */
+  .filter-label {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    color: var(--accent-warm);
+    min-width: 22px;
+  }
+  .filter-toggle-label input:checked + .toggle-slider {
+    background: rgba(255, 179, 71, 0.25);
+    border-color: rgba(255, 179, 71, 0.6);
+  }
+  .filter-slider .wave-row {
+    color: var(--accent-warm);
+  }
+  /* Override wave-row dot color for filter rows (no dot used, color drives toggle thumb) */
+
+  /* Time control */
+  .time-control h3 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .time-label {
+    flex: 1;
+  }
+  .freeze-btn {
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    background: rgba(77, 208, 255, 0.08);
+    color: var(--text-dim);
+    border: 1px solid rgba(77, 208, 255, 0.25);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+  }
+  .freeze-btn:hover {
+    background: rgba(77, 208, 255, 0.18);
+    color: var(--text);
+    border-color: rgba(77, 208, 255, 0.5);
+  }
+  .freeze-btn.active {
+    background: rgba(255, 107, 157, 0.2);
+    color: #ff6b9d;
+    border-color: rgba(255, 107, 157, 0.6);
+    box-shadow: 0 0 14px rgba(255, 107, 157, 0.3);
+  }
+
+  /* Speed-Buttons */
+  .speed-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    gap: 12px;
+  }
+  .speed-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+  .speed-buttons {
+    display: flex;
+    gap: 2px;
+    background: rgba(120, 140, 170, 0.1);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .speed-btn {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 4px 10px;
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .speed-btn:hover { color: var(--text); }
+  .speed-btn.active {
+    background: rgba(77, 208, 255, 0.22);
+    color: var(--accent);
+    box-shadow: 0 0 8px rgba(77, 208, 255, 0.2);
+  }
+  input[type="range"]:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  input[type="range"]:disabled::-webkit-slider-thumb {
+    background: #5a6a82;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  input[type="range"]:disabled::-moz-range-thumb {
+    background: #5a6a82;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  #info {
+    top: 90px;
+    right: 24px;
+    width: 240px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  #info h3 {
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(120,180,255,0.1);
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row.hidden { display: none; }
+  .info-row#avg-row {
+    background: rgba(255, 209, 102, 0.08);
+    margin: 4px -8px 0;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border-bottom: none;
+  }
+  .info-row#avg-row .info-value {
+    color: #ffd166;
+    font-weight: 500;
+  }
+  .n-count {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: 6px;
+    opacity: 0.7;
+  }
+  .info-label { color: var(--text-dim); }
+  .info-value { 
+    font-family: 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .formula {
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(77,208,255,0.06);
+    border-left: 2px solid var(--accent);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .reset-avg-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    padding: 7px 10px;
+    background: rgba(77, 208, 255, 0.08);
+    color: var(--text-dim);
+    border: 1px solid rgba(77, 208, 255, 0.25);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .reset-avg-btn:hover {
+    background: rgba(77, 208, 255, 0.18);
+    color: var(--text);
+    border-color: rgba(77, 208, 255, 0.5);
+  }
+
+  .legend {
+    position: fixed;
+    top: 90px;
+    left: 24px;
+    font-size: 12px;
+    z-index: 10;
+    padding: 14px 18px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0;
+  }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 720px) {
+    #info, .legend { display: none; }
+    #controls { flex-direction: column; gap: 14px; padding: 16px; }
+    header { padding: 14px 18px; }
+    h1 { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<header>
+  <h1>Polarisation einer <em>Transversalwelle</em></h1>
+  <div class="subtitle">Gesetz von Malus &middot; I = I₀ · cos²(Δφ)</div>
+</header>
+
+<div class="panel legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#4dd0ff;"></div>
+    <span>einlaufendes Licht</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#ffb347;"></div>
+    <span>Filter F₁, F₂</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#ff6b9d;"></div>
+    <span>einmal gefiltert</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#ffd166;"></div>
+    <span>zweimal gefiltert</span>
+  </div>
+</div>
+
+<div class="panel" id="info">
+  <h3>Hinter letztem aktivem Filter</h3>
+  <div class="info-row">
+    <span class="info-label">φ Filter</span>
+    <span class="info-value" id="phi-filter">F₁: 0°</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">φ Licht</span>
+    <span class="info-value" id="active-count">45°</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">A / A₀</span>
+    <span class="info-value" id="amp-ratio">1.00</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">I / I₀</span>
+    <span class="info-value" id="int-ratio">1.00</span>
+  </div>
+  <div class="info-row hidden" id="avg-row">
+    <span class="info-label">⟨I⟩ / I₀ <span class="n-count" id="n-count">N=0</span></span>
+    <span class="info-value" id="int-avg">–</span>
+  </div>
+  <div class="formula" id="formula">A = A₀ · cos(Δφ) &middot; I = I₀ · cos²(Δφ)</div>
+  <button id="reset-avg-btn" class="reset-avg-btn" type="button" style="display:none;">↺ Mittelwert zurücksetzen</button>
+</div>
+
+<div class="panel" id="controls">
+  <div class="control-group">
+    <h3>Einlaufendes Licht</h3>
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="linear" type="button">linear polarisiert</button>
+      <button class="mode-tab" data-mode="unpolarized" type="button">unpolarisiert</button>
+    </div>
+    <div class="wave-row" id="linear-row">
+      <span class="wave-dot" style="color:#4dd0ff; background:#4dd0ff;"></span>
+      <input type="range" id="wave-angle" min="0" max="360" value="45" step="1">
+      <span class="value" id="wave-angle-val">45°</span>
+    </div>
+    <div class="wave-row hidden" id="unpolarized-row">
+      <span class="wave-dot" style="color:#cbd5e1; background:#cbd5e1;"></span>
+      <span class="unpolarized-hint">zufällig wechselnde Polarisationsrichtung</span>
+    </div>
+  </div>
+  <div class="control-group filter-slider">
+    <h3>Polarisationsfilter</h3>
+    <div class="wave-row" data-filter="0">
+      <label class="toggle filter-toggle-label">
+        <input type="checkbox" class="filter-toggle" data-filter="0" checked>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="filter-label">F₁</span>
+      <input type="range" class="filter-angle" data-filter="0" min="0" max="360" value="0" step="1">
+      <span class="value warm" data-filter="0">0°</span>
+    </div>
+    <div class="wave-row disabled" data-filter="1">
+      <label class="toggle filter-toggle-label">
+        <input type="checkbox" class="filter-toggle" data-filter="1">
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="filter-label">F₂</span>
+      <input type="range" class="filter-angle" data-filter="1" min="0" max="360" value="90" step="1">
+      <span class="value warm" data-filter="1">90°</span>
+    </div>
+  </div>
+  <div class="control-group time-control">
+    <h3>
+      <button id="freeze-btn" class="freeze-btn" type="button">⏸ Freeze</button>
+      <span class="time-label">Zeit (Periode)</span>
+    </h3>
+    <div class="control-row">
+      <input type="range" id="time-offset" min="-1" max="1" value="0" step="0.005" disabled>
+      <span class="value mono" id="time-offset-val">0.00 T</span>
+    </div>
+    <div class="speed-row">
+      <span class="speed-label">Geschwindigkeit</span>
+      <div class="speed-buttons">
+        <button class="speed-btn active" data-speed="1" type="button">1×</button>
+        <button class="speed-btn" data-speed="3" type="button">3×</button>
+        <button class="speed-btn" data-speed="10" type="button">10×</button>
+        <button class="speed-btn" data-speed="20" type="button">20×</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// === Scene setup ===
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0a0e1a, 18, 45);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(7, 4.5, 9);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 5;
+controls.maxDistance = 25;
+controls.target.set(0, 0, 0);
+
+// === Lights ===
+scene.add(new THREE.AmbientLight(0x6080a0, 0.5));
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+keyLight.position.set(5, 8, 6);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x4dd0ff, 0.4);
+rimLight.position.set(-5, 2, -3);
+scene.add(rimLight);
+
+// === Axis (propagation direction = X) ===
+const axisGroup = new THREE.Group();
+scene.add(axisGroup);
+
+// Central propagation axis line
+const axisGeom = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(-8, 0, 0),
+  new THREE.Vector3(8, 0, 0)
+]);
+const axisMat = new THREE.LineDashedMaterial({ 
+  color: 0x4a6080, dashSize: 0.15, gapSize: 0.12, transparent: true, opacity: 0.6 
+});
+const axisLine = new THREE.Line(axisGeom, axisMat);
+axisLine.computeLineDistances();
+axisGroup.add(axisLine);
+
+// Coordinate frame at origin
+function makeArrow(dir, color, length = 1.2) {
+  const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(0, 0, 0), length, color, 0.18, 0.12);
+  return arrow;
+}
+const frameGroup = new THREE.Group();
+frameGroup.position.set(-7, 0, 0);
+frameGroup.add(makeArrow(new THREE.Vector3(1, 0, 0), 0x4a6080, 1.0));  // x
+frameGroup.add(makeArrow(new THREE.Vector3(0, 1, 0), 0x66aaff, 1.0));  // y
+frameGroup.add(makeArrow(new THREE.Vector3(0, 0, 1), 0x66aaff, 1.0));  // z
+scene.add(frameGroup);
+
+// === Wave parameters ===
+const WAVE_X_START = -7;
+const WAVE_X_F1 = 0;              // Position Filter 1
+const WAVE_X_F2 = 4;              // Position Filter 2
+const WAVE_X_END_FINAL = 7;
+// Abschnitte:
+//   einlaufend:        WAVE_X_START  …  WAVE_X_F1
+//   zwischen F1 & F2:  WAVE_X_F1     …  WAVE_X_F2
+//   hinter F2:         WAVE_X_F2     …  WAVE_X_END_FINAL
+const WAVE_X_END = WAVE_X_F1;
+const WAVE_X_START2 = WAVE_X_F1;
+const WAVE_X_END2 = WAVE_X_F2;
+const WAVE_X_START3 = WAVE_X_F2;
+const WAVE_X_END3 = WAVE_X_END_FINAL;
+const N_SAMPLES = 140;
+const WAVELENGTH = 2.4;
+const AMPLITUDE = 1.0;
+const ANGULAR_FREQ = 2.5;          // animation speed
+const WAVE_NUMBER = (2 * Math.PI) / WAVELENGTH;
+
+// === Helper: build wave as tube (for body) + vectors (for arrows) ===
+class WaveVisual {
+  constructor(color, xStart, xEnd, style = 'solid') {
+    this.color = color;
+    this.xStart = xStart;
+    this.xEnd = xEnd;
+    this.style = style;            // 'solid' oder 'thin'
+    this.group = new THREE.Group();
+    scene.add(this.group);
+
+    const isThin = style === 'thin';
+    this.tubeRadius = isThin ? 0.022 : 0.045;
+    this.arrowVisible = !isThin;   // Komponenten zeigen keine Pfeile (sonst Chaos)
+
+    // Smooth tube along the wave path
+    this.tubeMat = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: color,
+      emissiveIntensity: isThin ? 0.7 : 0.5,
+      roughness: 0.4,
+      metalness: 0.1,
+      transparent: true,
+      opacity: isThin ? 0.55 : 0.95
+    });
+    this.tubeMesh = null;
+
+    // Vector arrows along the wave (showing field direction)
+    this.arrowCount = 14;
+    this.arrows = [];
+    if (this.arrowVisible) {
+      for (let i = 0; i < this.arrowCount; i++) {
+        const shaftGeom = new THREE.CylinderGeometry(0.018, 0.018, 1, 6);
+        const headGeom = new THREE.ConeGeometry(0.06, 0.16, 8);
+        const mat = new THREE.MeshStandardMaterial({
+          color: color, emissive: color, emissiveIntensity: 0.4,
+          transparent: true, opacity: 0.85
+        });
+        const shaft = new THREE.Mesh(shaftGeom, mat);
+        const head = new THREE.Mesh(headGeom, mat);
+        const arrowGroup = new THREE.Group();
+        arrowGroup.add(shaft);
+        arrowGroup.add(head);
+        this.arrows.push({ group: arrowGroup, shaft, head, mat });
+        this.group.add(arrowGroup);
+      }
+    }
+  }
+
+  update(time, polarAngleRad, amplitudeScale = 1) {
+    const points = [];
+    const n = N_SAMPLES;
+    const xRange = this.xEnd - this.xStart;
+    const effectiveAmp = AMPLITUDE * amplitudeScale;
+
+    // Polarization direction in (y, z) plane: 0° = horizontal (+z), 90° = vertical (+y)
+    // We'll define angle measured from the z-axis toward y-axis (so 0° = z, 90° = y)
+    const dirY = Math.sin(polarAngleRad);
+    const dirZ = Math.cos(polarAngleRad);
+
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = this.xStart + t * xRange;
+      const phase = WAVE_NUMBER * x - ANGULAR_FREQ * time;
+      const displacement = effectiveAmp * Math.sin(phase);
+      points.push(new THREE.Vector3(x, displacement * dirY, displacement * dirZ));
+    }
+
+    // Rebuild tube
+    if (this.tubeMesh) {
+      this.group.remove(this.tubeMesh);
+      this.tubeMesh.geometry.dispose();
+    }
+    if (Math.abs(effectiveAmp) > 0.001) {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeom = new THREE.TubeGeometry(curve, 120, this.tubeRadius, 8, false);
+      this.tubeMesh = new THREE.Mesh(tubeGeom, this.tubeMat);
+      this.group.add(this.tubeMesh);
+    }
+
+    // Position arrows along the path
+    if (!this.arrowVisible) return;
+    for (let i = 0; i < this.arrowCount; i++) {
+      const t = (i + 0.5) / this.arrowCount;
+      const x = this.xStart + t * xRange;
+      const phase = WAVE_NUMBER * x - ANGULAR_FREQ * time;
+      const displacement = effectiveAmp * Math.sin(phase);
+      const arrow = this.arrows[i];
+      
+      const yPos = displacement * dirY;
+      const zPos = displacement * dirZ;
+      const magnitude = Math.abs(displacement);
+
+      if (magnitude < 0.02 || Math.abs(effectiveAmp) < 0.001) {
+        arrow.group.visible = false;
+        continue;
+      }
+      arrow.group.visible = true;
+
+      // Arrow goes from axis (x, 0, 0) to (x, yPos, zPos)
+      arrow.group.position.set(x, 0, 0);
+
+      // Build orientation: align +Y of arrow with vector (0, yPos, zPos)
+      const dir = new THREE.Vector3(0, yPos, zPos);
+      const length = dir.length();
+      dir.normalize();
+      const quat = new THREE.Quaternion();
+      quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      arrow.group.quaternion.copy(quat);
+
+      // Scale shaft to length minus head
+      const shaftLen = Math.max(0.01, length - 0.16);
+      arrow.shaft.scale.set(1, shaftLen, 1);
+      arrow.shaft.position.set(0, shaftLen / 2, 0);
+      arrow.head.position.set(0, shaftLen + 0.08, 0);
+
+      arrow.mat.opacity = 0.75 + 0.25 * (magnitude / Math.max(Math.abs(effectiveAmp), 0.001));
+    }
+  }
+
+  setVisible(v) {
+    this.group.visible = v;
+  }
+
+  // Alternative Update-Methode: direkt eine Liste von 3D-Punkten übergeben.
+  // Damit kann die Welle beliebige Profile darstellen (z.B. Wellenzug-Folge mit
+  // wechselnden Polarisationsrichtungen). Pfeile werden in diesem Modus ausgeblendet.
+  updateWithPoints(points) {
+    if (this.tubeMesh) {
+      this.group.remove(this.tubeMesh);
+      this.tubeMesh.geometry.dispose();
+    }
+    if (points && points.length >= 2) {
+      // CatmullRomCurve3 würde Sprünge an Naht-Stellen glätten, was wir nicht wollen.
+      // Stattdessen segmentieren wir bei großen Sprüngen und bauen mehrere Tubes.
+      // Hier vereinfachen wir: wir benutzen eine "lockere" Catmull-Rom-Kurve, die durch alle Punkte geht.
+      // Dichte Sample-Punkte minimieren visuelle Artefakte an Diskontinuitäten.
+      const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.0);
+      // tubularSegments proportional zur Punktanzahl, damit Sprünge schmal bleiben
+      const segments = Math.max(120, points.length * 2);
+      const tubeGeom = new THREE.TubeGeometry(curve, segments, this.tubeRadius, 8, false);
+      this.tubeMesh = new THREE.Mesh(tubeGeom, this.tubeMat);
+      this.group.add(this.tubeMesh);
+    }
+    // Pfeile ausblenden (diese Methode bedient den Multi-Wellenzug-Fall)
+    if (this.arrowVisible) {
+      this.arrows.forEach(a => { a.group.visible = false; });
+    }
+  }
+}
+
+// Farben pro Welle
+const WAVE_COLORS = [0x4dd0ff, 0xa78bfa, 0xa3e635];
+const SUM_COLOR_1 = 0xff6b9d;   // erste Summe (nach erstem aktivem Filter)
+const SUM_COLOR_2 = 0xffd166;   // zweite Summe (nach zweitem aktivem Filter)
+
+// Erzeugt für einen x-Bereich ein vollständiges Set an Wellen-Visuals.
+// Pro Segment werden zwei Summen-Wellen vorgehalten (rosa & gold), damit dynamisch
+// gewählt werden kann, welche Farbe für "einmal gefiltert" und "zweimal gefiltert" gilt.
+function makeSegmentVisuals(xStart, xEnd) {
+  return {
+    solidComponents: [
+      new WaveVisual(WAVE_COLORS[0], xStart, xEnd, 'solid'),
+      new WaveVisual(WAVE_COLORS[1], xStart, xEnd, 'solid'),
+      new WaveVisual(WAVE_COLORS[2], xStart, xEnd, 'solid'),
+    ],
+    thinComponents: [
+      new WaveVisual(WAVE_COLORS[0], xStart, xEnd, 'thin'),
+      new WaveVisual(WAVE_COLORS[1], xStart, xEnd, 'thin'),
+      new WaveVisual(WAVE_COLORS[2], xStart, xEnd, 'thin'),
+    ],
+    sumFirst:  new WaveVisual(SUM_COLOR_1, xStart, xEnd, 'solid'),  // einmal gefiltert
+    sumSecond: new WaveVisual(SUM_COLOR_2, xStart, xEnd, 'solid'),  // zweimal gefiltert
+  };
+}
+
+const segIncoming = makeSegmentVisuals(WAVE_X_START, WAVE_X_F1);             // vor F1
+const segMiddle   = makeSegmentVisuals(WAVE_X_F1,    WAVE_X_F2);             // zwischen F1 und F2
+const segFinal    = makeSegmentVisuals(WAVE_X_F2,    WAVE_X_END_FINAL);      // hinter F2
+
+// Hilfsfunktion: alle Wellen eines Segments ausblenden
+function hideSegment(seg) {
+  seg.solidComponents.forEach(w => w.setVisible(false));
+  seg.thinComponents.forEach(w => w.setVisible(false));
+  seg.sumFirst.setVisible(false);
+  seg.sumSecond.setVisible(false);
+}
+
+// Rendert ein Streckensegment im unpolarisierten Modus: pro Wellenzug ein eigener Tube
+// in der Farbe des Wellenzugs. Tubes werden aus einem Pool wiederverwendet.
+class MultitrainSegmentVisual {
+  constructor(xStart, xEnd) {
+    this.xStart = xStart;
+    this.xEnd = xEnd;
+    this.group = new THREE.Group();
+    scene.add(this.group);
+    this.tubePool = [];   // wiederverwendbare {mesh, material}-Einträge
+    this.activeTubes = 0; // wie viele Pool-Einträge gerade aktiv genutzt
+  }
+
+  setVisible(v) { this.group.visible = v; }
+
+  hide() {
+    for (let i = 0; i < this.activeTubes; i++) {
+      this.tubePool[i].mesh.visible = false;
+    }
+    this.activeTubes = 0;
+  }
+
+  acquireTube(color) {
+    let entry;
+    if (this.activeTubes < this.tubePool.length) {
+      entry = this.tubePool[this.activeTubes];
+      entry.material.color.setHex(color);
+      entry.material.emissive.setHex(color);
+      entry.mesh.visible = true;
+    } else {
+      const material = new THREE.MeshStandardMaterial({
+        color: color, emissive: color, emissiveIntensity: 0.5,
+        roughness: 0.4, metalness: 0.1,
+        transparent: true, opacity: 0.95
+      });
+      const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
+      this.group.add(mesh);
+      entry = { mesh, material };
+      this.tubePool.push(entry);
+    }
+    this.activeTubes++;
+    return entry;
+  }
+
+  // Pro Wellenzug, der im x-Bereich [xStart, xEnd] präsent ist, einen Tube rendern.
+  // filtersApplied: Liste der Filterwinkel (in Grad), die der Zug durchlaufen hat.
+  update(time, filtersApplied) {
+    this.hide();
+    for (let i = 0; i < wavetrains.length; i++) {
+      const tr = wavetrains[i];
+      const xFront = WAVE_X_START + PHASE_VELOCITY * (time - tr.tEmit);
+      const trNext = wavetrains[i + 1];
+      const xBack = trNext
+        ? WAVE_X_START + PHASE_VELOCITY * (time - trNext.tEmit)
+        : WAVE_X_START;
+      const xa = Math.max(xBack, this.xStart);
+      const xb = Math.min(xFront, this.xEnd);
+      if (xa >= xb - 1e-4) continue;
+
+      // Filter anwenden
+      let amp = AMPLITUDE;
+      let polAngleDeg = tr.angleDeg;
+      for (const filterDeg of filtersApplied) {
+        amp *= Math.cos(THREE.MathUtils.degToRad(polAngleDeg - filterDeg));
+        polAngleDeg = filterDeg;
+      }
+      if (Math.abs(amp) < 0.001) continue;
+      const angleRad = THREE.MathUtils.degToRad(polAngleDeg);
+      const dirY = Math.sin(angleRad);
+      const dirZ = Math.cos(angleRad);
+
+      // Punkte sampeln über [xa, xb]
+      const subLen = xb - xa;
+      const n = Math.max(8, Math.ceil(subLen * 30));
+      const points = [];
+      for (let k = 0; k <= n; k++) {
+        const x = xa + (k / n) * subLen;
+        const phase = WAVE_NUMBER * (x - WAVE_X_START)
+                    - ANGULAR_FREQ * (time - tr.tEmit)
+                    + tr.phase0;
+        const displacement = amp * Math.sin(phase);
+        points.push(new THREE.Vector3(x, displacement * dirY, displacement * dirZ));
+      }
+      if (points.length < 2) continue;
+
+      const entry = this.acquireTube(tr.color);
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeom = new THREE.TubeGeometry(curve, Math.max(20, points.length * 2), 0.045, 8, false);
+      if (entry.mesh.geometry) entry.mesh.geometry.dispose();
+      entry.mesh.geometry = tubeGeom;
+    }
+  }
+}
+
+const multiSegIncoming = new MultitrainSegmentVisual(WAVE_X_START, WAVE_X_F1);
+const multiSegMiddle   = new MultitrainSegmentVisual(WAVE_X_F1,    WAVE_X_F2);
+const multiSegFinal    = new MultitrainSegmentVisual(WAVE_X_F2,    WAVE_X_END_FINAL);
+
+function hideAllMultiSegments() {
+  multiSegIncoming.hide();
+  multiSegMiddle.hide();
+  multiSegFinal.hide();
+}
+
+// === Polarization filter (Factory für 2 Filter) ===
+function createFilter(xPosition) {
+  const group = new THREE.Group();
+  group.position.x = xPosition;
+  scene.add(group);
+
+  const radius = 1.3;
+
+  // Disk - halbtransparent
+  const diskGeom = new THREE.CylinderGeometry(radius, radius, 0.06, 64);
+  const diskMat = new THREE.MeshStandardMaterial({
+    color: 0x3a4a68,
+    metalness: 0.4, roughness: 0.5,
+    transparent: true, opacity: 0.5,
+    depthWrite: false, side: THREE.DoubleSide
+  });
+  const disk = new THREE.Mesh(diskGeom, diskMat);
+  disk.rotation.z = Math.PI / 2;
+  disk.renderOrder = 2;
+  group.add(disk);
+
+  // Rim
+  const rimGeom = new THREE.TorusGeometry(radius, 0.045, 12, 80);
+  const rimMat = new THREE.MeshStandardMaterial({
+    color: 0xffb347, emissive: 0xffb347, emissiveIntensity: 0.7,
+    metalness: 0.5, roughness: 0.3
+  });
+  const rim = new THREE.Mesh(rimGeom, rimMat);
+  rim.rotation.y = Math.PI / 2;
+  rim.renderOrder = 3;
+  group.add(rim);
+
+  // Slit
+  const slitGroup = new THREE.Group();
+  group.add(slitGroup);
+
+  const slitLength = 2.3;
+  const slitWidth = 0.16;
+  const slitDepth = 0.12;
+  const slitGeom = new THREE.BoxGeometry(slitDepth, slitLength, slitWidth);
+  const slitMat = new THREE.MeshStandardMaterial({
+    color: 0xffd28a, emissive: 0xffb347, emissiveIntensity: 1.2,
+    metalness: 0.2, roughness: 0.2,
+    transparent: true, opacity: 0.85
+  });
+  const slit = new THREE.Mesh(slitGeom, slitMat);
+  slitGroup.add(slit);
+
+  // Slit edge outline
+  const slitEdgeMat = new THREE.LineBasicMaterial({ color: 0xffe0a8, transparent: true, opacity: 0.9 });
+  const halfL = slitLength / 2, halfW = slitWidth / 2;
+  const slitEdgePts = [
+    new THREE.Vector3(slitDepth/2 + 0.01, -halfL, -halfW),
+    new THREE.Vector3(slitDepth/2 + 0.01,  halfL, -halfW),
+    new THREE.Vector3(slitDepth/2 + 0.01,  halfL,  halfW),
+    new THREE.Vector3(slitDepth/2 + 0.01, -halfL,  halfW),
+    new THREE.Vector3(slitDepth/2 + 0.01, -halfL, -halfW)
+  ];
+  const slitEdgeGeom = new THREE.BufferGeometry().setFromPoints(slitEdgePts);
+  slitGroup.add(new THREE.Line(slitEdgeGeom, slitEdgeMat));
+
+  return { group, slitGroup };
+}
+
+const filter1 = createFilter(WAVE_X_F1);
+const filter2 = createFilter(WAVE_X_F2);
+
+// === Labels (sprite text) ===
+function makeLabel(text, color = '#e8eef8') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = '300 28px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(2.2, 0.55, 1);
+  return sprite;
+}
+const labelIncoming = makeLabel('einlaufende Wellen', '#e8eef8');
+labelIncoming.position.set(-4.5, 1.9, 0);
+scene.add(labelIncoming);
+
+const labelF1 = makeLabel('Filter F₁', '#ffb347');
+labelF1.position.set(WAVE_X_F1, 2.0, 0);
+scene.add(labelF1);
+
+const labelF2 = makeLabel('Filter F₂', '#ffb347');
+labelF2.position.set(WAVE_X_F2, 2.0, 0);
+scene.add(labelF2);
+
+// Labels für Filter ausblenden, wenn Filter inaktiv (wird in der Loop gesetzt)
+
+// === State ===
+// Lichtmodus: 'linear' oder 'unpolarized'
+let lightMode = 'linear';
+let linearAngleDeg = 45;
+
+// Im unpolarisierten Modus: Folge von Wellenzügen, die nacheinander von links emittiert werden.
+// Jeder Wellenzug hat eigene Polarisation, eigene Anfangsphase, eigenen Emissionszeitpunkt.
+// Phasengeschwindigkeit: v = ω/k
+const PHASE_VELOCITY = ANGULAR_FREQ / WAVE_NUMBER;
+// Mittlere Wellenzuglänge (in Wellenlängen) — bestimmt, wie häufig neue Züge emittiert werden
+const MEAN_TRAIN_WAVELENGTHS = 1.2;
+const MEAN_TRAIN_DURATION = MEAN_TRAIN_WAVELENGTHS * (2 * Math.PI / ANGULAR_FREQ);
+
+let wavetrains = [];          // jeweils {angleDeg, phase0, tEmit}
+let nextEmitTime = -Infinity;  // Zeitpunkt, an dem der nächste Wellenzug emittiert wird
+
+// Farbpalette für Wellenzüge im unpolarisierten Modus.
+// Helle, gut unterscheidbare Farben, die sich von der "Hauptpalette" (cyan/rosa/gold) abheben.
+const TRAIN_COLORS = [
+  0x4dd0ff, // cyan
+  0xa78bfa, // violett
+  0xa3e635, // lime
+  0xff6b9d, // pink
+  0xffd166, // gold
+  0xffa07a, // koralle
+  0x7dd3fc, // hellblau
+  0xfb923c, // orange
+  0xc084fc, // lavendel
+  0x67e8f9, // aqua
+  0xfca5a5, // rosa
+  0xbef264, // hellgrün
+];
+
+function randomTrainColor() {
+  return TRAIN_COLORS[Math.floor(Math.random() * TRAIN_COLORS.length)];
+}
+
+function emitNewTrain(t) {
+  wavetrains.push({
+    angleDeg: Math.random() * 360,
+    phase0:   Math.random() * 2 * Math.PI,
+    tEmit:    t,
+    color:    randomTrainColor(),
+  });
+}
+
+// Initial befüllen: rückwirkend Wellenzüge erzeugen, damit der Strahl bei tCurrent bereits voll ist.
+function seedWavetrains(tCurrent) {
+  wavetrains = [];
+  const totalDistance = WAVE_X_END_FINAL - WAVE_X_START;
+  const totalTime = totalDistance / PHASE_VELOCITY;
+  let t = tCurrent - totalTime - MEAN_TRAIN_DURATION;
+  while (t < tCurrent) {
+    wavetrains.push({
+      angleDeg: Math.random() * 360,
+      phase0:   Math.random() * 2 * Math.PI,
+      tEmit:    t,
+      color:    randomTrainColor(),
+    });
+    t += MEAN_TRAIN_DURATION * (0.5 + Math.random());
+  }
+  nextEmitTime = t;
+}
+// Initiale Befüllung passiert beim ersten Wechsel in den unpolarisierten Modus.
+let wavetrainsSeeded = false;
+
+// Wellenzüge aktualisieren: emittieren wo nötig, abgelaufene entfernen
+function updateWavetrains(t) {
+  // Garbage Collection: Wellenzüge entfernen, deren Hinterkante (= Vorderkante des nächsten) schon
+  // außerhalb des Strahls ist. Da die Hinterkante eines Zugs i die Vorderkante von Zug (i+1) ist,
+  // entfernen wir vom Anfang her (älteste Züge), wenn die Vorderkante des Folgezugs bereits jenseits
+  // von WAVE_X_END_FINAL ist.
+  while (wavetrains.length >= 2) {
+    const next = wavetrains[1];
+    const xFrontOfNext = WAVE_X_START + PHASE_VELOCITY * (t - next.tEmit);
+    if (xFrontOfNext >= WAVE_X_END_FINAL + 0.5) {
+      wavetrains.shift();
+    } else break;
+  }
+  // Neue Züge emittieren, wenn Zeit dafür
+  while (t >= nextEmitTime) {
+    emitNewTrain(nextEmitTime);
+    nextEmitTime += MEAN_TRAIN_DURATION * (0.5 + Math.random());
+  }
+}
+
+// Liefert für einen x-Punkt und Zeit t den passenden Wellenzug (oder null).
+// Der Wellenzug an Position x ist derjenige mit der größten tEmit, für den noch gilt:
+//   xFront(t) >= x  (Vorderkante hat x bereits erreicht).
+function findTrainAt(x, t) {
+  // wavetrains ist chronologisch sortiert (älteste zuerst).
+  for (let i = wavetrains.length - 1; i >= 0; i--) {
+    const tr = wavetrains[i];
+    const xFront = WAVE_X_START + PHASE_VELOCITY * (t - tr.tEmit);
+    if (xFront >= x) return tr;
+  }
+  return null;
+}
+
+// Auslenkung berechnen: jedes Wellenzugs eigene Phase
+function trainDisplacement(train, x, t) {
+  // Phase im globalen Koordinatensystem:
+  //   phase = k·(x - x_emit) - ω·(t - tEmit) + phase0
+  // x_emit = WAVE_X_START
+  const phase = WAVE_NUMBER * (x - WAVE_X_START) - ANGULAR_FREQ * (t - train.tEmit) + train.phase0;
+  return Math.sin(phase);
+}
+
+// Kumulativer Mittelwert der Intensität (zur Anzeige im unpolarisierten Modus).
+// Wir summieren alle räumlich gemittelten Intensitätswerte ab dem Moment der Modus-Aktivierung.
+let avgSumI = 0;
+let avgCountN = 0;
+
+function resetAverage() {
+  avgSumI = 0;
+  avgCountN = 0;
+}
+
+const filters = [
+  { active: true,  angleDeg: 0  },
+  { active: false, angleDeg: 90 },
+];
+let isFrozen = false;
+let simTime = 0;             // Simulationszeit, pro Frame manuell hochgezählt
+let lastRealTime = performance.now() / 1000;  // letzte Echtzeit für Δt
+let speedFactor = 1;         // 1×, 3×, 10× …
+let timeOffset = 0;          // Offset in Einheiten von T (Perioden), [-1, 1] — nur im Freeze-Modus
+const PERIOD = (2 * Math.PI) / ANGULAR_FREQ;   // T in Sekunden
+let frozenSimTime = 0;       // simTime, zu der eingefroren wurde
+
+// === UI hookup ===
+const phiFilterEl = document.getElementById('phi-filter');
+const activeCountEl = document.getElementById('active-count');
+const ampRatioEl = document.getElementById('amp-ratio');
+const intRatioEl = document.getElementById('int-ratio');
+
+// Modus-Tabs
+const linearRow = document.getElementById('linear-row');
+const unpolRow = document.getElementById('unpolarized-row');
+function setMode(mode) {
+  lightMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+  linearRow.classList.toggle('hidden', mode !== 'linear');
+  unpolRow.classList.toggle('hidden', mode !== 'unpolarized');
+  // Mittelwert zurücksetzen
+  resetAverage();
+  // Wellenzüge bei jedem Wechsel neu initialisieren (frische Zufallsfolge)
+  wavetrainsSeeded = false;
+  // Reset-Button + Formel anpassen (wenn die Funktion bereits definiert ist)
+  if (typeof updateInfoModeUI === 'function') updateInfoModeUI();
+}
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => setMode(tab.dataset.mode));
+});
+
+// Linear-Slider
+const waveAngleSlider = document.getElementById('wave-angle');
+const waveAngleVal = document.getElementById('wave-angle-val');
+waveAngleSlider.addEventListener('input', () => {
+  linearAngleDeg = parseFloat(waveAngleSlider.value);
+  waveAngleVal.textContent = linearAngleDeg.toFixed(0) + '°';
+});
+
+// Reset-Knopf für kumulativen Mittelwert
+const resetAvgBtn = document.getElementById('reset-avg-btn');
+const formulaEl = document.getElementById('formula');
+resetAvgBtn.addEventListener('click', resetAverage);
+
+function updateInfoModeUI() {
+  // Reset-Knopf nur im unpolarisierten Modus zeigen
+  resetAvgBtn.style.display = (lightMode === 'unpolarized') ? 'block' : 'none';
+  // Formel: im unpolarisierten Modus statistische Aussage zeigen
+  if (lightMode === 'unpolarized') {
+    formulaEl.innerHTML = '⟨I⟩ → ½ · I₀  &nbsp;(unabhängig vom Filter)';
+  } else {
+    formulaEl.innerHTML = 'A = A₀ · cos(Δφ) &middot; I = I₀ · cos²(Δφ)';
+  }
+}
+updateInfoModeUI();
+
+// Zwei Filter-Slider und Toggles
+document.querySelectorAll('.filter-angle').forEach(slider => {
+  const idx = parseInt(slider.dataset.filter, 10);
+  const valEl = document.querySelector('.value[data-filter="' + idx + '"]');
+  slider.addEventListener('input', () => {
+    filters[idx].angleDeg = parseFloat(slider.value);
+    valEl.textContent = filters[idx].angleDeg.toFixed(0) + '°';
+  });
+});
+
+document.querySelectorAll('.filter-toggle').forEach(cb => {
+  const idx = parseInt(cb.dataset.filter, 10);
+  const row = document.querySelector('.wave-row[data-filter="' + idx + '"]');
+  cb.addEventListener('change', () => {
+    filters[idx].active = cb.checked;
+    row.classList.toggle('disabled', !cb.checked);
+  });
+});
+
+// Freeze + Time-Offset
+const freezeBtn = document.getElementById('freeze-btn');
+const timeSlider = document.getElementById('time-offset');
+const timeVal = document.getElementById('time-offset-val');
+
+function fmtOffset(v) {
+  const sign = v > 0 ? '+' : (v < 0 ? '−' : '\u00A0');
+  return sign + Math.abs(v).toFixed(2) + ' T';
+}
+
+freezeBtn.addEventListener('click', () => {
+  isFrozen = !isFrozen;
+  if (isFrozen) {
+    // Aktuelle Sim-Zeit als Basis einfrieren
+    frozenSimTime = simTime;
+    timeOffset = 0;
+    timeSlider.value = '0';
+    timeVal.textContent = fmtOffset(0);
+    timeSlider.disabled = false;
+    freezeBtn.classList.add('active');
+    freezeBtn.textContent = '▶ Play';
+  } else {
+    // Nahtloses Weiterlaufen: simTime auf den zuletzt angezeigten Wert setzen,
+    // damit die Welle dort weiterläuft, wo sie sichtbar war.
+    simTime = frozenSimTime + timeOffset * PERIOD;
+    timeSlider.disabled = true;
+    freezeBtn.classList.remove('active');
+    freezeBtn.textContent = '⏸ Freeze';
+  }
+});
+
+timeSlider.addEventListener('input', () => {
+  timeOffset = parseFloat(timeSlider.value);
+  timeVal.textContent = fmtOffset(timeOffset);
+});
+
+// Speed-Buttons: ändern den Geschwindigkeitsfaktor (1×, 3×, 10×)
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    speedFactor = parseFloat(btn.dataset.speed);
+  });
+});
+
+// === Animation loop ===
+function animate() {
+  requestAnimationFrame(animate);
+  // Echtzeit-dt messen und Simulationszeit mit Speed-Faktor weiterzählen
+  const realNow = performance.now() / 1000;
+  const dtReal = Math.min(0.1, realNow - lastRealTime);
+  lastRealTime = realNow;
+  if (!isFrozen) {
+    simTime += dtReal * speedFactor;
+  }
+  // Im Freeze-Modus: simTime bleibt fest, aber Offset-Slider verschiebt um ±1 Periode
+  const time = isFrozen ? (frozenSimTime + timeOffset * PERIOD) : simTime;
+
+  // Filter-Zustand
+  const f1Active = filters[0].active;
+  const f2Active = filters[1].active;
+  const f1AngleDeg = filters[0].angleDeg;
+  const f2AngleDeg = filters[1].angleDeg;
+  const f1Rad = THREE.MathUtils.degToRad(f1AngleDeg);
+  const f2Rad = THREE.MathUtils.degToRad(f2AngleDeg);
+
+  // Filter-Scheiben sichtbar nur wenn aktiv
+  filter1.group.visible = f1Active;
+  filter2.group.visible = f2Active;
+  labelF1.visible = f1Active;
+  labelF2.visible = f2Active;
+  // Schlitz-Rotation
+  filter1.slitGroup.rotation.x = THREE.MathUtils.degToRad(90 - f1AngleDeg);
+  filter2.slitGroup.rotation.x = THREE.MathUtils.degToRad(90 - f2AngleDeg);
+
+  // Wellenzüge nur im unpolarisierten Modus pflegen.
+  if (lightMode === 'unpolarized') {
+    if (!wavetrainsSeeded) {
+      seedWavetrains(time);
+      wavetrainsSeeded = true;
+    }
+    if (!isFrozen) updateWavetrains(time);
+  }
+
+  // === RENDERING-PFAD ===
+  // Stage pro Segment bestimmen
+  const stageIncoming = 0;
+  const stageMiddle = f1Active ? 1 : 0;
+  const stageFinal = (f1Active ? 1 : 0) + (f2Active ? 1 : 0);
+
+  // Variablen für Info-Panel
+  let infoAmp = 0;        // Amplitude hinter dem letzten aktiven Filter
+  let incomingAngleDeg = 0;
+
+  if (lightMode === 'linear') {
+    // ----- LINEARER MODUS: eine ungestörte sinusförmige Welle -----
+    // Multitrain-Tubes ausblenden
+    hideAllMultiSegments();
+    incomingAngleDeg = linearAngleDeg;
+
+    const stateBeforeF1 = {
+      angleDeg: incomingAngleDeg,
+      angleRad: THREE.MathUtils.degToRad(incomingAngleDeg),
+      amp: 1.0
+    };
+    let stateAfterF1 = stateBeforeF1;
+    if (f1Active) {
+      const delta = stateBeforeF1.angleDeg - f1AngleDeg;
+      const amp = stateBeforeF1.amp * Math.cos(THREE.MathUtils.degToRad(delta));
+      stateAfterF1 = { angleDeg: f1AngleDeg, angleRad: f1Rad, amp };
+    }
+    let stateAfterF2 = stateAfterF1;
+    if (f2Active) {
+      const delta = stateAfterF1.angleDeg - f2AngleDeg;
+      const amp = stateAfterF1.amp * Math.cos(THREE.MathUtils.degToRad(delta));
+      stateAfterF2 = { angleDeg: f2AngleDeg, angleRad: f2Rad, amp };
+    }
+
+    function renderSegmentLinear(seg, state, stage) {
+      hideSegment(seg);
+      if (stage === 0) {
+        seg.solidComponents[0].setVisible(true);
+        seg.solidComponents[0].update(time, state.angleRad, state.amp);
+      } else {
+        const sumWave = (stage === 1) ? seg.sumFirst : seg.sumSecond;
+        sumWave.setVisible(true);
+        sumWave.update(time, state.angleRad, state.amp);
+      }
+    }
+    renderSegmentLinear(segIncoming, stateBeforeF1, stageIncoming);
+    renderSegmentLinear(segMiddle,   stateAfterF1,  stageMiddle);
+    renderSegmentLinear(segFinal,    stateAfterF2,  stageFinal);
+
+    // Info: aktuelle Amplitude hinter dem letzten aktiven Filter
+    if (f2Active) infoAmp = stateAfterF2.amp;
+    else if (f1Active) infoAmp = stateAfterF1.amp;
+    else infoAmp = stateBeforeF1.amp;
+    // Im linearen Modus ist die Intensität bereits konstant — kein Mittel nötig.
+    var spatialIntensityForAvg = infoAmp * infoAmp;
+
+  } else {
+    // ----- UNPOLARISIERTER MODUS: Wellenzug-Folge mit pro-Wellenzug-Farben -----
+    // Alte (stage-basierte) Tubes ausblenden — wir rendern jetzt pro Wellenzug.
+    hideSegment(segIncoming);
+    hideSegment(segMiddle);
+    hideSegment(segFinal);
+
+    const filtersBeforeF1 = [];
+    const filtersBeforeF2 = f1Active ? [f1AngleDeg] : [];
+    const filtersAfterF2  = (f1Active ? [f1AngleDeg] : []).concat(f2Active ? [f2AngleDeg] : []);
+
+    multiSegIncoming.setVisible(true);
+    multiSegMiddle.setVisible(true);
+    multiSegFinal.setVisible(true);
+    multiSegIncoming.update(time, filtersBeforeF1);
+    multiSegMiddle.update(time, filtersBeforeF2);
+    multiSegFinal.update(time, filtersAfterF2);
+
+    // Info-Panel: räumliches Mittel der Intensität über die gesamte Strecke hinter dem letzten aktiven Filter.
+    // Pro Punkt nehmen wir den (vorzeichenbehafteten) Amplitudenfaktor des dort liegenden Wellenzugs
+    // und quadrieren ihn. Mittelung erfolgt also über alle Wellenzüge, die gerade in dieser Strecke liegen.
+    // Das ist physikalisch das, was ein über die Strecke integrierender Detektor messen würde.
+    const probeXStart = f2Active ? WAVE_X_F2
+                      : f1Active ? WAVE_X_F1
+                      : WAVE_X_START;
+    const probeXEnd = WAVE_X_END_FINAL;
+    const N_PROBES = 80;
+    let sumI = 0;
+    let nProbes = 0;
+    let firstTrainAngle = null;
+    for (let k = 0; k < N_PROBES; k++) {
+      const xp = probeXStart + ((k + 0.5) / N_PROBES) * (probeXEnd - probeXStart);
+      const tr = findTrainAt(xp, time);
+      if (!tr) continue;
+      if (firstTrainAngle === null) firstTrainAngle = tr.angleDeg;
+      let amp = 1.0;
+      let currentAngle = tr.angleDeg;
+      if (f1Active) {
+        amp *= Math.cos(THREE.MathUtils.degToRad(currentAngle - f1AngleDeg));
+        currentAngle = f1AngleDeg;
+      }
+      if (f2Active) {
+        amp *= Math.cos(THREE.MathUtils.degToRad(currentAngle - f2AngleDeg));
+        currentAngle = f2AngleDeg;
+      }
+      sumI += amp * amp;
+      nProbes++;
+    }
+    const spatialMeanI = nProbes > 0 ? sumI / nProbes : 0;
+    // infoAmp behalten wir als "Wellenzug-Amplitude an einem Beispielpunkt" für die Anzeige
+    incomingAngleDeg = firstTrainAngle ?? 0;
+    infoAmp = Math.sqrt(spatialMeanI);   // ergibt √⟨I⟩, also der "RMS"-Amplitudenwert
+    // Den räumlichen Intensitätsmittelwert für die zeitliche Glättung weiterreichen
+    var spatialIntensityForAvg = spatialMeanI;
+  }
+
+  // Info-Panel
+  let infoLabel;
+  if (f2Active) infoLabel = 'F₂: ' + f2AngleDeg.toFixed(0) + '°';
+  else if (f1Active) infoLabel = 'F₁: ' + f1AngleDeg.toFixed(0) + '°';
+  else infoLabel = '(kein Filter)';
+  const currentIntensity = infoAmp * infoAmp;
+
+  // Kumulativer Mittelwert: alle räumlich gemittelten Intensitätswerte aufsummieren.
+  // Wir geben das Intensitäts-Sample auch dann ab, wenn wir gerade nicht im unpolarisierten
+  // Modus sind — aber resetAverage() beim Modus-Wechsel sorgt für saubere Zählung.
+  if (!isFrozen && lightMode === 'unpolarized') {
+    avgSumI += spatialIntensityForAvg;
+    avgCountN++;
+  }
+  const avgIntensity = avgCountN > 0 ? avgSumI / avgCountN : 0;
+
+  phiFilterEl.textContent = infoLabel;
+  const avgRow = document.getElementById('avg-row');
+  const intAvgEl = document.getElementById('int-avg');
+  const nCountEl = document.getElementById('n-count');
+
+  if (lightMode === 'unpolarized') {
+    activeCountEl.textContent = incomingAngleDeg.toFixed(0) + '°';
+    intRatioEl.textContent = currentIntensity.toFixed(2);
+    avgRow.classList.remove('hidden');
+    intAvgEl.textContent = avgIntensity.toFixed(2);
+    nCountEl.textContent = 'N=' + avgCountN;
+  } else {
+    activeCountEl.textContent = linearAngleDeg.toFixed(0) + '°';
+    intRatioEl.textContent = currentIntensity.toFixed(2);
+    avgRow.classList.add('hidden');
+  }
+  ampRatioEl.textContent = Math.abs(infoAmp).toFixed(2);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// === Resize ===
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
