@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polarisation einer Transversalwelle</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: rgba(18, 24, 40, 0.85);
+    --border: rgba(120, 180, 255, 0.2);
+    --accent: #4dd0ff;
+    --accent-warm: #ffb347;
+    --text: #e8eef8;
+    --text-dim: #8a9bb5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: radial-gradient(ellipse at top, #1a2138 0%, var(--bg) 70%);
+    color: var(--text);
+  }
+  #canvas-container {
+    position: fixed; inset: 0;
+  }
+  canvas { display: block; }
+  
+  header {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 20px 30px;
+    z-index: 10;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(10,14,26,0.9), transparent);
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
+  h1 em {
+    color: var(--accent);
+    font-style: italic;
+    font-weight: 400;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.03em;
+  }
+
+  .panel {
+    position: fixed;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  #controls {
+    bottom: 24px;
+    left: 24px;
+    right: 24px;
+    display: flex;
+    gap: 24px;
+    align-items: stretch;
+  }
+  .control-group {
+    flex: 1;
+    min-width: 0;
+  }
+  .control-group h3 {
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: linear-gradient(to right, rgba(77,208,255,0.15), rgba(77,208,255,0.4));
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(77,208,255,0.6);
+    transition: transform 0.15s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 12px rgba(77,208,255,0.6);
+  }
+  .filter-slider input[type="range"]::-webkit-slider-thumb {
+    background: var(--accent-warm);
+    box-shadow: 0 0 12px rgba(255,179,71,0.6);
+  }
+  .filter-slider input[type="range"]::-moz-range-thumb {
+    background: var(--accent-warm);
+    box-shadow: 0 0 12px rgba(255,179,71,0.6);
+  }
+  .value {
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    color: var(--text);
+    min-width: 56px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .value.warm { color: var(--accent-warm); }
+  .value.mono { min-width: 70px; }
+
+  /* Time control */
+  .time-control h3 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .time-label {
+    flex: 1;
+  }
+  .freeze-btn {
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    background: rgba(77, 208, 255, 0.08);
+    color: var(--text-dim);
+    border: 1px solid rgba(77, 208, 255, 0.25);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+  }
+  .freeze-btn:hover {
+    background: rgba(77, 208, 255, 0.18);
+    color: var(--text);
+    border-color: rgba(77, 208, 255, 0.5);
+  }
+  .freeze-btn.active {
+    background: rgba(255, 107, 157, 0.2);
+    color: #ff6b9d;
+    border-color: rgba(255, 107, 157, 0.6);
+    box-shadow: 0 0 14px rgba(255, 107, 157, 0.3);
+  }
+  input[type="range"]:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  input[type="range"]:disabled::-webkit-slider-thumb {
+    background: #5a6a82;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  input[type="range"]:disabled::-moz-range-thumb {
+    background: #5a6a82;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  #info {
+    top: 90px;
+    right: 24px;
+    width: 240px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  #info h3 {
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(120,180,255,0.1);
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: var(--text-dim); }
+  .info-value { 
+    font-family: 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .formula {
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(77,208,255,0.06);
+    border-left: 2px solid var(--accent);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .legend {
+    position: fixed;
+    top: 90px;
+    left: 24px;
+    font-size: 12px;
+    z-index: 10;
+    padding: 14px 18px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0;
+  }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 720px) {
+    #info, .legend { display: none; }
+    #controls { flex-direction: column; gap: 14px; padding: 16px; }
+    header { padding: 14px 18px; }
+    h1 { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<header>
+  <h1>Polarisation einer <em>Transversalwelle</em></h1>
+  <div class="subtitle">Gesetz von Malus &middot; I = I₀ · cos²(Δφ)</div>
+</header>
+
+<div class="panel legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#4dd0ff;"></div>
+    <span>Einfallende Welle</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#ffb347;"></div>
+    <span>Polarisationsfilter</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#ff6b9d;"></div>
+    <span>Durchgelassene Welle</span>
+  </div>
+</div>
+
+<div class="panel" id="info">
+  <h3>Messwerte</h3>
+  <div class="info-row">
+    <span class="info-label">φ Welle</span>
+    <span class="info-value" id="phi-wave">0°</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">φ Filter</span>
+    <span class="info-value" id="phi-filter">0°</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Δφ</span>
+    <span class="info-value" id="delta-phi">0°</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">A / A₀</span>
+    <span class="info-value" id="amp-ratio">1.00</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">I / I₀</span>
+    <span class="info-value" id="int-ratio">1.00</span>
+  </div>
+  <div class="formula">A = A₀ · cos(Δφ)</div>
+</div>
+
+<div class="panel" id="controls">
+  <div class="control-group">
+    <h3>Polarisationsrichtung der Welle</h3>
+    <div class="control-row">
+      <input type="range" id="wave-angle" min="0" max="360" value="45" step="1">
+      <span class="value" id="wave-angle-val">45°</span>
+    </div>
+  </div>
+  <div class="control-group filter-slider">
+    <h3>Filter-Durchlassrichtung</h3>
+    <div class="control-row">
+      <input type="range" id="filter-angle" min="0" max="360" value="0" step="1">
+      <span class="value warm" id="filter-angle-val">0°</span>
+    </div>
+  </div>
+  <div class="control-group time-control">
+    <h3>
+      <button id="freeze-btn" class="freeze-btn" type="button">⏸ Freeze</button>
+      <span class="time-label">Zeit (Periode)</span>
+    </h3>
+    <div class="control-row">
+      <input type="range" id="time-offset" min="-1" max="1" value="0" step="0.005" disabled>
+      <span class="value mono" id="time-offset-val">0.00 T</span>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// === Scene setup ===
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0a0e1a, 18, 45);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(7, 4.5, 9);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 5;
+controls.maxDistance = 25;
+controls.target.set(0, 0, 0);
+
+// === Lights ===
+scene.add(new THREE.AmbientLight(0x6080a0, 0.5));
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+keyLight.position.set(5, 8, 6);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x4dd0ff, 0.4);
+rimLight.position.set(-5, 2, -3);
+scene.add(rimLight);
+
+// === Axis (propagation direction = X) ===
+const axisGroup = new THREE.Group();
+scene.add(axisGroup);
+
+// Central propagation axis line
+const axisGeom = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(-8, 0, 0),
+  new THREE.Vector3(8, 0, 0)
+]);
+const axisMat = new THREE.LineDashedMaterial({ 
+  color: 0x4a6080, dashSize: 0.15, gapSize: 0.12, transparent: true, opacity: 0.6 
+});
+const axisLine = new THREE.Line(axisGeom, axisMat);
+axisLine.computeLineDistances();
+axisGroup.add(axisLine);
+
+// Coordinate frame at origin
+function makeArrow(dir, color, length = 1.2) {
+  const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(0, 0, 0), length, color, 0.18, 0.12);
+  return arrow;
+}
+const frameGroup = new THREE.Group();
+frameGroup.position.set(-7, 0, 0);
+frameGroup.add(makeArrow(new THREE.Vector3(1, 0, 0), 0x4a6080, 1.0));  // x
+frameGroup.add(makeArrow(new THREE.Vector3(0, 1, 0), 0x66aaff, 1.0));  // y
+frameGroup.add(makeArrow(new THREE.Vector3(0, 0, 1), 0x66aaff, 1.0));  // z
+scene.add(frameGroup);
+
+// === Wave parameters ===
+const WAVE_X_START = -7;
+const WAVE_X_END = 0;             // einfallende Welle läuft bis Filtermitte (scheint durch das halbtransparente Filter durch)
+const WAVE_X_START2 = 0;          // durchgelassene Welle beginnt an Filtermitte
+const WAVE_X_END2 = 7;
+const N_SAMPLES = 140;
+const WAVELENGTH = 2.4;
+const AMPLITUDE = 1.0;
+const ANGULAR_FREQ = 2.5;          // animation speed
+const WAVE_NUMBER = (2 * Math.PI) / WAVELENGTH;
+
+// === Helper: build wave as tube (for body) + vectors (for arrows) ===
+class WaveVisual {
+  constructor(color, xStart, xEnd) {
+    this.color = color;
+    this.xStart = xStart;
+    this.xEnd = xEnd;
+    this.group = new THREE.Group();
+    scene.add(this.group);
+
+    // Smooth tube along the wave path
+    this.tubeMat = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: color,
+      emissiveIntensity: 0.5,
+      roughness: 0.4,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.95
+    });
+    this.tubeMesh = null;
+
+    // Vector arrows along the wave (showing field direction)
+    this.arrowCount = 14;
+    this.arrows = [];
+    for (let i = 0; i < this.arrowCount; i++) {
+      const shaftGeom = new THREE.CylinderGeometry(0.018, 0.018, 1, 6);
+      const headGeom = new THREE.ConeGeometry(0.06, 0.16, 8);
+      const mat = new THREE.MeshStandardMaterial({
+        color: color, emissive: color, emissiveIntensity: 0.4,
+        transparent: true, opacity: 0.85
+      });
+      const shaft = new THREE.Mesh(shaftGeom, mat);
+      const head = new THREE.Mesh(headGeom, mat);
+      const arrowGroup = new THREE.Group();
+      arrowGroup.add(shaft);
+      arrowGroup.add(head);
+      this.arrows.push({ group: arrowGroup, shaft, head, mat });
+      this.group.add(arrowGroup);
+    }
+  }
+
+  update(time, polarAngleRad, amplitudeScale = 1) {
+    const points = [];
+    const n = N_SAMPLES;
+    const xRange = this.xEnd - this.xStart;
+    const effectiveAmp = AMPLITUDE * amplitudeScale;
+
+    // Polarization direction in (y, z) plane: 0° = horizontal (+z), 90° = vertical (+y)
+    // We'll define angle measured from the z-axis toward y-axis (so 0° = z, 90° = y)
+    const dirY = Math.sin(polarAngleRad);
+    const dirZ = Math.cos(polarAngleRad);
+
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = this.xStart + t * xRange;
+      const phase = WAVE_NUMBER * x - ANGULAR_FREQ * time;
+      const displacement = effectiveAmp * Math.sin(phase);
+      points.push(new THREE.Vector3(x, displacement * dirY, displacement * dirZ));
+    }
+
+    // Rebuild tube
+    if (this.tubeMesh) {
+      this.group.remove(this.tubeMesh);
+      this.tubeMesh.geometry.dispose();
+    }
+    if (Math.abs(effectiveAmp) > 0.001) {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeom = new THREE.TubeGeometry(curve, 120, 0.045, 8, false);
+      this.tubeMesh = new THREE.Mesh(tubeGeom, this.tubeMat);
+      this.group.add(this.tubeMesh);
+    }
+
+    // Position arrows along the path
+    for (let i = 0; i < this.arrowCount; i++) {
+      const t = (i + 0.5) / this.arrowCount;
+      const x = this.xStart + t * xRange;
+      const phase = WAVE_NUMBER * x - ANGULAR_FREQ * time;
+      const displacement = effectiveAmp * Math.sin(phase);
+      const arrow = this.arrows[i];
+      
+      const yPos = displacement * dirY;
+      const zPos = displacement * dirZ;
+      const magnitude = Math.abs(displacement);
+
+      if (magnitude < 0.02 || Math.abs(effectiveAmp) < 0.001) {
+        arrow.group.visible = false;
+        continue;
+      }
+      arrow.group.visible = true;
+
+      // Arrow goes from axis (x, 0, 0) to (x, yPos, zPos)
+      arrow.group.position.set(x, 0, 0);
+
+      // Build orientation: align +Y of arrow with vector (0, yPos, zPos)
+      const dir = new THREE.Vector3(0, yPos, zPos);
+      const length = dir.length();
+      dir.normalize();
+      const quat = new THREE.Quaternion();
+      quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      arrow.group.quaternion.copy(quat);
+
+      // Scale shaft to length minus head
+      const shaftLen = Math.max(0.01, length - 0.16);
+      arrow.shaft.scale.set(1, shaftLen, 1);
+      arrow.shaft.position.set(0, shaftLen / 2, 0);
+      arrow.head.position.set(0, shaftLen + 0.08, 0);
+
+      arrow.mat.opacity = 0.75 + 0.25 * (magnitude / Math.max(Math.abs(effectiveAmp), 0.001));
+    }
+  }
+
+  setVisible(v) {
+    this.group.visible = v;
+  }
+}
+
+const incomingWave = new WaveVisual(0x4dd0ff, WAVE_X_START, WAVE_X_END);
+const outgoingWave = new WaveVisual(0xff6b9d, WAVE_X_START2, WAVE_X_END2);
+
+// === Polarization filter ===
+const filterGroup = new THREE.Group();
+scene.add(filterGroup);
+
+// Disk - halbtransparent, damit die einfallende Welle dahinter durchscheint
+const diskGeom = new THREE.CylinderGeometry(1.6, 1.6, 0.06, 64);
+const diskMat = new THREE.MeshStandardMaterial({
+  color: 0x3a4a68,
+  metalness: 0.4,
+  roughness: 0.5,
+  transparent: true,
+  opacity: 0.5,
+  depthWrite: false,
+  side: THREE.DoubleSide
+});
+const disk = new THREE.Mesh(diskGeom, diskMat);
+disk.rotation.z = Math.PI / 2;  // face along +X
+disk.renderOrder = 2;
+filterGroup.add(disk);
+
+// Rim (subtle ring) - markanter, da Scheibe selbst durchsichtig ist
+const rimGeom = new THREE.TorusGeometry(1.6, 0.05, 12, 80);
+const rimMat = new THREE.MeshStandardMaterial({
+  color: 0xffb347, emissive: 0xffb347, emissiveIntensity: 0.7,
+  metalness: 0.5, roughness: 0.3
+});
+const rim = new THREE.Mesh(rimGeom, rimMat);
+rim.rotation.y = Math.PI / 2;
+rim.renderOrder = 3;
+filterGroup.add(rim);
+
+// Slit (the pass-through direction) - shown as a glowing slot
+const slitGroup = new THREE.Group();
+filterGroup.add(slitGroup);
+
+const slitLength = 2.8;
+const slitWidth = 0.18;
+const slitDepth = 0.12;
+const slitGeom = new THREE.BoxGeometry(slitDepth, slitLength, slitWidth);
+const slitMat = new THREE.MeshStandardMaterial({
+  color: 0xffd28a,
+  emissive: 0xffb347,
+  emissiveIntensity: 1.2,
+  metalness: 0.2,
+  roughness: 0.2,
+  transparent: true,
+  opacity: 0.85
+});
+const slit = new THREE.Mesh(slitGeom, slitMat);
+slitGroup.add(slit);
+
+// Slit edge lines for clarity
+const slitEdgeMat = new THREE.LineBasicMaterial({ color: 0xffe0a8, transparent: true, opacity: 0.9 });
+const slitEdgePts = [];
+const halfL = slitLength / 2, halfW = slitWidth / 2;
+// Rectangle outline on front face
+slitEdgePts.push(
+  new THREE.Vector3(slitDepth/2 + 0.01, -halfL, -halfW),
+  new THREE.Vector3(slitDepth/2 + 0.01,  halfL, -halfW),
+  new THREE.Vector3(slitDepth/2 + 0.01,  halfL,  halfW),
+  new THREE.Vector3(slitDepth/2 + 0.01, -halfL,  halfW),
+  new THREE.Vector3(slitDepth/2 + 0.01, -halfL, -halfW)
+);
+const slitEdgeGeom = new THREE.BufferGeometry().setFromPoints(slitEdgePts);
+const slitEdge = new THREE.Line(slitEdgeGeom, slitEdgeMat);
+slitGroup.add(slitEdge);
+
+// === Labels (sprite text) ===
+function makeLabel(text, color = '#e8eef8') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.font = '300 28px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(2.2, 0.55, 1);
+  return sprite;
+}
+const labelIncoming = makeLabel('einfallende Welle', '#4dd0ff');
+labelIncoming.position.set(-5, 1.9, 0);
+scene.add(labelIncoming);
+
+const labelFilter = makeLabel('Polarisationsfilter', '#ffb347');
+labelFilter.position.set(0, 2.2, 0);
+scene.add(labelFilter);
+
+const labelOutgoing = makeLabel('durchgelassene Welle', '#ff6b9d');
+labelOutgoing.position.set(5, 1.9, 0);
+scene.add(labelOutgoing);
+
+// === State ===
+let waveAngleDeg = 45;
+let filterAngleDeg = 0;
+let startTime = performance.now();
+let isFrozen = false;
+let frozenTime = 0;          // Zeit (in s), zu der eingefroren wurde
+let timeOffset = 0;          // Offset in Einheiten von T (Perioden), [-1, 1]
+const PERIOD = (2 * Math.PI) / ANGULAR_FREQ;   // T in Sekunden
+
+// === UI hookup ===
+const waveSlider = document.getElementById('wave-angle');
+const filterSlider = document.getElementById('filter-angle');
+const waveVal = document.getElementById('wave-angle-val');
+const filterVal = document.getElementById('filter-angle-val');
+
+const phiWaveEl = document.getElementById('phi-wave');
+const phiFilterEl = document.getElementById('phi-filter');
+const deltaPhiEl = document.getElementById('delta-phi');
+const ampRatioEl = document.getElementById('amp-ratio');
+const intRatioEl = document.getElementById('int-ratio');
+
+waveSlider.addEventListener('input', () => {
+  waveAngleDeg = parseFloat(waveSlider.value);
+  waveVal.textContent = waveAngleDeg + '°';
+});
+filterSlider.addEventListener('input', () => {
+  filterAngleDeg = parseFloat(filterSlider.value);
+  filterVal.textContent = filterAngleDeg + '°';
+});
+
+// Freeze + Time-Offset
+const freezeBtn = document.getElementById('freeze-btn');
+const timeSlider = document.getElementById('time-offset');
+const timeVal = document.getElementById('time-offset-val');
+
+function fmtOffset(v) {
+  const sign = v > 0 ? '+' : (v < 0 ? '−' : '\u00A0');
+  return sign + Math.abs(v).toFixed(2) + ' T';
+}
+
+freezeBtn.addEventListener('click', () => {
+  isFrozen = !isFrozen;
+  if (isFrozen) {
+    // aktuelle laufende Zeit als Basis einfrieren
+    frozenTime = (performance.now() - startTime) / 1000;
+    timeOffset = 0;
+    timeSlider.value = '0';
+    timeVal.textContent = fmtOffset(0);
+    timeSlider.disabled = false;
+    freezeBtn.classList.add('active');
+    freezeBtn.textContent = '▶ Play';
+  } else {
+    // Nahtloses Weiterlaufen: startTime so verschieben, dass die aktuelle
+    // effektive Zeit (frozenTime + offset*T) erhalten bleibt.
+    const effective = frozenTime + timeOffset * PERIOD;
+    startTime = performance.now() - effective * 1000;
+    timeSlider.disabled = true;
+    freezeBtn.classList.remove('active');
+    freezeBtn.textContent = '⏸ Freeze';
+  }
+});
+
+timeSlider.addEventListener('input', () => {
+  timeOffset = parseFloat(timeSlider.value);
+  timeVal.textContent = fmtOffset(timeOffset);
+});
+
+// === Animation loop ===
+function animate() {
+  requestAnimationFrame(animate);
+  // Im laufenden Betrieb: kontinuierliche Zeit. Im Freeze: eingefrorene Zeit + Slider-Offset.
+  const time = isFrozen
+    ? (frozenTime + timeOffset * PERIOD)
+    : ((performance.now() - startTime) / 1000);
+
+  // Convert to radians. We measure from the +z axis (horizontal) toward +y (vertical).
+  // So 0° = horizontal, 90° = vertical.
+  const waveRad = THREE.MathUtils.degToRad(waveAngleDeg);
+  const filterRad = THREE.MathUtils.degToRad(filterAngleDeg);
+
+  // Difference angle
+  let delta = waveAngleDeg - filterAngleDeg;
+  // Normalize to [-90, 90] for display of physical angle between axes
+  let deltaForCos = delta;
+  // (cos is even and 180°-periodic in this context: a polarization axis is a line, not a vector,
+  //  so angles 0..180 cover all distinct orientations)
+  const cosDelta = Math.cos(THREE.MathUtils.degToRad(delta));
+  const ampScale = cosDelta;   // can be negative; sign flips the wave (physically equivalent)
+  const ampAbs = Math.abs(ampScale);
+  const intensity = ampScale * ampScale;
+
+  // Update info panel
+  phiWaveEl.textContent = waveAngleDeg.toFixed(0) + '°';
+  phiFilterEl.textContent = filterAngleDeg.toFixed(0) + '°';
+  // Display delta normalized to [0, 90]
+  // Display delta: zuerst auf [0, 360) bringen, dann auf [0, 180], dann auf [0, 90]
+  // (eine Polarisationsachse ist eine Linie, der "Winkel zwischen zwei Achsen" liegt zwischen 0° und 90°)
+  let displayDelta = ((delta % 360) + 360) % 360;
+  if (displayDelta > 180) displayDelta = 360 - displayDelta;
+  if (displayDelta > 90)  displayDelta = 180 - displayDelta;
+  deltaPhiEl.textContent = displayDelta.toFixed(0) + '°';
+  ampRatioEl.textContent = ampAbs.toFixed(2);
+  intRatioEl.textContent = intensity.toFixed(2);
+
+  // Incoming wave (full amplitude)
+  incomingWave.update(time, waveRad, 1.0);
+
+  // Outgoing wave: polarization = filter direction, amplitude = |cos(delta)| * A0
+  // The sign of cos(delta) determines phase relationship; we apply it via ampScale (can be negative)
+  outgoingWave.update(time, filterRad, ampScale);
+
+  // Rotate the filter slit to match filter angle
+  // Slit is along Y (vertical) by default; rotation around X (propagation axis)
+  // 0° = horizontal slit (along z) -> rotate by -90° from default
+  // Our convention: 0° = horizontal, 90° = vertical
+  // Default slit is along Y (vertical = 90°), so rotate by (filterAngle - 90)°
+  // Schlitz parallel zur Durchlassrichtung. Standardorientierung des Schlitzes ist entlang y-Achse (vertikal, entspricht 90°).
+  // Slider 0° = horizontal (entlang z): Schlitz muss um -90° (oder +90°) um x-Achse gedreht werden.
+  // Slider 90° = vertikal (entlang y): keine Rotation.
+  slitGroup.rotation.x = THREE.MathUtils.degToRad(90 - filterAngleDeg);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// === Resize ===
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
